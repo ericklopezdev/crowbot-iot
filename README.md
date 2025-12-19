@@ -1,136 +1,138 @@
-# Crowbot - IOT Assistant Project
+# Crowbot - Proyecto de Asistente IOT
 
-## Project Overview
+## Resumen del Proyecto
 
-> Modern days are turning gray because of the overconsumption of social media content and dependency on AI tools. Especially for the next generations.
+> Los días modernos se están volviendo grises debido al sobreconsumo de contenido en redes sociales y la dependencia de herramientas de IA. Especialmente para las próximas generaciones.
 
-**Crowbot** emerges as a counterpoint to this trend - an IoT voice assistant that reimagines AI as a positive force for children's development. By creating an interactive, voice-powered learning companion, Crowbot helps kids build genuine communication skills, fosters curiosity through conversational education, and provides a healthy alternative to passive screen-based interactions.
+**Crowbot** surge como un contrapunto a esta tendencia: un asistente de voz IoT que reimagina la IA como una fuerza positiva para el desarrollo infantil. Al crear un compañero de aprendizaje interactivo y con voz, Crowbot ayuda a los niños a desarrollar habilidades de comunicación genuinas, fomenta la curiosidad a través de la educación conversacional y proporciona una alternativa saludable a las interacciones pasivas basadas en pantallas.
 
-![Project Idea](project.png)
+![Idea del Proyecto](assets/system.png)
 
-### Vision & Mission
+### Visión y Misión
 
-- **Reclaim Childhood**: Combat the graying of modern childhood by offering meaningful, interactive learning experiences.
-- **AI for Good**: Demonstrate how AI can enhance human development rather than replace human connection.
-- **Educational Innovation**: Bridge the gap between technology and education through natural voice interfaces.
-- **IoT Accessibility**: Make advanced AI learning tools available through affordable, distributed IoT devices.
+- **Reclamar la Infancia**: Combatir el envejecimiento de la infancia moderna ofreciendo experiencias de aprendizaje significativas e interactivas.
+- **IA para el Bien**: Demostrar cómo la IA puede mejorar el desarrollo humano en lugar de reemplazar la conexión humana.
+- **Innovación Educativa**: Cerrar la brecha entre la tecnología y la educación a través de interfaces de voz naturales.
+- **Accesibilidad IoT**: Hacer que las herramientas avanzadas de aprendizaje con IA estén disponibles a través de dispositivos IoT asequibles y distribuidos.
 
-### Key Features & Benefits
+### Características Clave y Beneficios
 
-- **Educational Motivation**: Transforms learning into playful conversations, making education enjoyable and less intimidating for children.
-- **Voice-Powered Interaction**: Natural speech recognition and synthesis allow kids to communicate freely, building language skills and confidence.
-- **IoT Integration**: Supports both local standalone operation and distributed MQTT-based processing for scalable IoT deployments.
-- **Customizable Learning**: Flexible prompt system enables tailored educational content for different age groups and subjects.
-- **Real-time Feedback**: Immediate AI responses help reinforce learning concepts through interactive dialogue.
-- **Privacy-Focused**: Designed with children's data protection in mind, with local processing options available.
+- **Motivación Educativa**: Transforma el aprendizaje en conversaciones lúdicas, haciendo que la educación sea agradable y menos intimidante para los niños.
+- **Interacción Potenciada por Voz**: El reconocimiento y síntesis de habla naturales permiten a los niños comunicarse libremente, desarrollando habilidades lingüísticas y confianza.
+- **Integración IoT**: Soporta tanto operación local independiente como procesamiento distribuido basado en MQTT para despliegues IoT escalables.
+- **Aprendizaje Personalizable**: El sistema de prompts flexible permite contenido educativo adaptado para diferentes grupos de edad y materias.
+- **Retroalimentación en Tiempo Real**: Las respuestas inmediatas de IA ayudan a reforzar conceptos de aprendizaje a través del diálogo interactivo.
+- **Enfocado en la Privacidad**: Diseñado con la protección de datos infantiles en mente, con opciones de procesamiento local disponibles.
 
-### Target Audience
+### Audiencia Objetivo
 
-- Children aged 5-12 been couries.
-- Educators seeking innovative teaching tools
-- Parents wanting to supplement traditional learning methods
-- IoT enthusiasts building smart educational devices
+- Niños de 5-12 años curiosos.
+- Educadores que buscan herramientas de enseñanza innovadoras.
+- Padres que desean complementar métodos de aprendizaje tradicionales.
+- Entusiastas de IoT que construyen dispositivos educativos inteligentes.
 
-## Architecture Diagram
+## Diagrama de Arquitectura
 
 ```
-[Local Device / IoT] <--> MQTT Broker <--> [Server] <--> HTTP API <--> [Web App]
+[Dispositivo Local / IoT] <--> Broker MQTT <--> [Servidor] <--> API HTTP <--> [Aplicación Web]
      |                           |              |
      v                           v              v
-[Audio Recording] --> [STT] --> [LLM] --> [TTS] --> [Playback]
+[Grabación de Audio] --> [STT] --> [LLM] --> [TTS] --> [Reproducción]
      |                           |
-     +--> Local Test (cmd/local) |
-     +--> MQTT Test (test_mqtt.sh)
+     +--> Prueba Local (cmd/local) |
+     +--> Prueba MQTT (test_mqtt.sh)
 ```
 
-## Future Features
+## Características Futuras
 
-### Planned Iterations
+### Iteraciones Planificadas
 
-- [x] MQTT Broker
+- [x] Broker MQTT
 - [x] Backend MQTT
-- [x] Local Tests
-- [x] Worfklow Simulation
-- [x] Esp32 Setup with sensors (microphone, amplifier & speaker)
-- [ ] Database Persistency
-- [ ] HTTP Backend ApiRest
-- [ ] Frontend Webapp Dashboard visualizer
+- [x] Pruebas Locales
+- [x] Simulación de Flujo de Trabajo
+- [x] Configuración Esp32 con sensores (micrófono, amplificador y altavoz)
+- [ ] Persistencia de Base de Datos
+- [ ] API Backend HTTP ApiRest
+- [ ] Visualizador de Dashboard de Aplicación Web Frontend
 
-## Architecture
+## Arquitectura
 
-### Components
+### Componentes
 
-- **Local Recorder** (`internal/utils/local_recorder.go`): Handles audio recording from microphone, saves to WAV, and triggers processing.
-- **Local Orchestrator** (`internal/core/local_orchestrator.go`): Coordinates STT → LLM → TTS pipeline for local processing.
-- **Orchestrator** (`internal/core/orchestrator.go`): General orchestrator for MQTT-based processing.
-- **MQTT Client** (`internal/mqtt/client.go`): Handles MQTT connections, publishing, and subscribing for distributed processing.
-- **Services**:
-  - **GCP STT** (`internal/services/gcp_stt_service.go`): Converts audio to text using Google Speech-to-Text.
-  - **Gemini LLM** (`internal/services/gemini_service.go`): Processes text prompts and generates responses.
-  - **GCP TTS** (`internal/services/gcp_tts_service.go`): Converts text responses to audio and handles playback.
+- **Grabador Local** (`internal/utils/local_recorder.go`): Maneja la grabación de audio desde el micrófono, guarda en WAV y activa el procesamiento.
+- **Orquestador Local** (`internal/core/local_orchestrator.go`): Coordina la canalización STT → LLM → TTS para procesamiento local.
+- **Orquestador** (`internal/core/orchestrator.go`): Orquestador general para procesamiento basado en MQTT.
+- **Cliente MQTT** (`internal/mqtt/client.go`): Maneja conexiones MQTT, publicación y suscripción para procesamiento distribuido.
+- **Servicios**:
+  - **GCP STT** (`internal/services/gcp_stt_service.go`): Convierte audio a texto usando Google Speech-to-Text.
+  - **Gemini LLM** (`internal/services/gemini_service.go`): Procesa prompts de texto y genera respuestas.
+  - **GCP TTS** (`internal/services/gcp_tts_service.go`): Convierte respuestas de texto a audio y maneja la reproducción.
 
-### Local Simulation Flow
+### Flujo de Simulación Local
 
-1. **Recording**: User presses 'R' to start/stop recording via PortAudio.
-2. **Audio Processing**: Raw PCM chunks are collected and saved as `local_record.wav`.
-3. **STT**: WAV file is sent to Google STT (Spanish), returns transcribed text.
-4. **LLM**: Text is sent to Gemini with system prompt, returns response text.
-5. **TTS**: Response text is synthesized to audio (Spanish voice).
-6. **Playback**: Audio is played via PortAudio, and saved as `local_response.wav` for debugging.
+1. **Grabación**: El usuario presiona 'R' para iniciar/detener la grabación vía PortAudio.
+2. **Procesamiento de Audio**: Los chunks PCM crudos se recopilan y guardan como `local_record.wav`.
+3. **STT**: El archivo WAV se envía a Google STT (español), devuelve texto transcrito.
+4. **LLM**: El texto se envía a Gemini con prompt del sistema, devuelve texto de respuesta.
+5. **TTS**: El texto de respuesta se sintetiza a audio (voz en español).
+6. **Reproducción**: El audio se reproduce vía PortAudio, y se guarda como `local_response.wav` para depuración.
 
-### MQTT Distributed Flow
+### Flujo Distribuido MQTT
 
-1. **Audio Encoding**: Split recorded audio into chunks (e.g., 1-second PCM segments), encode to base64.
-2. **MQTT Publish**: Send chunks to MQTT topics (`/device/audio/start`, `/device/audio/chunk`, `/device/audio/end`).
-3. **Server Processing**: MQTT server subscribes, reassembles audio, runs STT/LLM/TTS, splits response into chunks.
-4. **MQTT Subscribe**: Client receives response chunks from `/device/{device_id}/audio/response_chunk`, decodes, reassembles, and plays.
-5. **Chunk Management**: Use sequence numbers and total count for ordering.
+1. **Codificación de Audio**: Divide el audio grabado en chunks (ej. segmentos PCM de 1 segundo), codifica a base64.
+2. **Publicación MQTT**: Envía chunks a tópicos MQTT (`/device/audio/start`, `/device/audio/chunk`, `/device/audio/end`).
+3. **Procesamiento del Servidor**: El servidor MQTT se suscribe, reensambla el audio, ejecuta STT/LLM/TTS, divide la respuesta en chunks.
+4. **Suscripción MQTT**: El cliente recibe chunks de respuesta de `/device/{device_id}/audio/response_chunk`, decodifica, reensambla y reproduce.
+5. **Gestión de Chunks**: Usa números de secuencia y conteo total para ordenar.
 
-### Prerequisites
+### Prerrequisitos
 
 - Go 1.25.1+
-- Google Cloud credentials
-- Environment variables:
-  - `GEMINI_API_KEY`: Your Gemini API key
-  - `PROMPT`: System prompt for the LLM (e.g., "You are a helpful assistant.")
-- Dependencies: Install with `go mod tidy`
-- For MQTT: Mosquitto broker (see `infra/mosquitto/mosquitto.conf`)
+- Credenciales de Google Cloud
+- Variables de entorno:
+  - `GEMINI_API_KEY`: Tu clave de API de Gemini
+  - `PROMPT`: Prompt del sistema para el LLM (ej. "Eres un asistente útil.")
+- Dependencias: Instala con `go mod tidy`
+- Para MQTT: Broker Mosquitto (ver `infra/mosquitto/mosquitto.conf`)
 
-### Running Local Simulation
+### Ejecutando Simulación Local
 
 ```bash
 go run cmd/local/main.go
 ```
 
-- Press 'R' then Enter to start recording.
-- Speak in Spanish.
-- Press 'R' again to stop and process.
-- Response audio plays automatically.
+- Presiona 'R' luego Enter para iniciar la grabación.
+- Habla en español.
+- Presiona 'R' de nuevo para detener y procesar.
+- El audio de respuesta se reproduce automáticamente.
 
-### Running MQTT Server
+### Ejecutando Servidor MQTT
 
 ```bash
 go run cmd/mqtt/main.go
 ```
 
-- Starts MQTT server listening on `tcp://localhost:1883`.
-- Processes audio chunks from devices and sends back responses.
+- Inicia el servidor MQTT escuchando en `tcp://localhost:1883`.
+- Procesa chunks de audio de dispositivos y envía respuestas de vuelta.
 
-### Testing MQTT
+### Probando MQTT
 
-Use the provided test script:
+Usa el script de prueba proporcionado:
 
 ```bash
 ./test_mqtt.sh test.wav [broker] [port]
 ```
 
-- Converts `test.wav` to chunks, sends via MQTT, receives and plays response.
+- Convierte `test.wav` a chunks, envía vía MQTT, recibe y reproduce respuesta.
 
-#### Files Generated
+#### Archivos Generados
 
-- `local_record.wav`: Recorded audio (local mode).
-- `local_response.wav`: Synthesized response (local mode).
-- `combined.pcm`: Reassembled response audio (MQTT mode).
+- `local_record.wav`: Audio grabado (modo local).
+- `local_response.wav`: Respuesta sintetizada (modo local).
+- `combined.pcm`: Audio de respuesta reensamblado (modo MQTT).
 
-This setup allows scaling to multiple IoT devices while keeping local fallback.</content>
+![Hardware del Proyecto](assets/hardware.png)
+
+Esta configuración permite escalar a múltiples dispositivos IoT mientras mantiene respaldo local.</content>
 <parameter name="filePath">README.md
