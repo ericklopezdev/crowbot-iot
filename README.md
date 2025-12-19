@@ -8,28 +8,11 @@
 
 ![Idea del Proyecto](assets/system.png)
 
-### Visión y Misión
-
-- **Reclamar la Infancia**: Combatir el envejecimiento de la infancia moderna ofreciendo experiencias de aprendizaje significativas e interactivas.
-- **IA para el Bien**: Demostrar cómo la IA puede mejorar el desarrollo humano en lugar de reemplazar la conexión humana.
-- **Innovación Educativa**: Cerrar la brecha entre la tecnología y la educación a través de interfaces de voz naturales.
-- **Accesibilidad IoT**: Hacer que las herramientas avanzadas de aprendizaje con IA estén disponibles a través de dispositivos IoT asequibles y distribuidos.
-
-### Características Clave y Beneficios
-
-- **Motivación Educativa**: Transforma el aprendizaje en conversaciones lúdicas, haciendo que la educación sea agradable y menos intimidante para los niños.
-- **Interacción Potenciada por Voz**: El reconocimiento y síntesis de habla naturales permiten a los niños comunicarse libremente, desarrollando habilidades lingüísticas y confianza.
-- **Integración IoT**: Soporta tanto operación local independiente como procesamiento distribuido basado en MQTT para despliegues IoT escalables.
-- **Aprendizaje Personalizable**: El sistema de prompts flexible permite contenido educativo adaptado para diferentes grupos de edad y materias.
-- **Retroalimentación en Tiempo Real**: Las respuestas inmediatas de IA ayudan a reforzar conceptos de aprendizaje a través del diálogo interactivo.
-- **Enfocado en la Privacidad**: Diseñado con la protección de datos infantiles en mente, con opciones de procesamiento local disponibles.
-
 ### Audiencia Objetivo
 
 - Niños de 5-12 años curiosos.
 - Educadores que buscan herramientas de enseñanza innovadoras.
 - Padres que desean complementar métodos de aprendizaje tradicionales.
-- Entusiastas de IoT que construyen dispositivos educativos inteligentes.
 
 ## Diagrama de Arquitectura
 
@@ -111,10 +94,7 @@ go run cmd/local/main.go
 
 ```bash
 go run cmd/mqtt/main.go
-```
-
-- Inicia el servidor MQTT escuchando en `tcp://localhost:1883`.
-- Procesa chunks de audio de dispositivos y envía respuestas de vuelta.
+``` - Inicia el servidor MQTT escuchando en `tcp://localhost:1883`. Procesa chunks de audio de dispositivos y envía respuestas de vuelta.
 
 ### Probando MQTT
 
