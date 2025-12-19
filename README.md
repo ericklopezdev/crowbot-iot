@@ -6,6 +6,8 @@
 
 **Crowbot** emerges as a counterpoint to this trend - an IoT voice assistant that reimagines AI as a positive force for children's development. By creating an interactive, voice-powered learning companion, Crowbot helps kids build genuine communication skills, fosters curiosity through conversational education, and provides a healthy alternative to passive screen-based interactions.
 
+![Project Idea](project.png)
+
 ### Vision & Mission
 
 - **Reclaim Childhood**: Combat the graying of modern childhood by offering meaningful, interactive learning experiences.
@@ -24,12 +26,10 @@
 
 ### Target Audience
 
-- Children aged 5-12 learning Spanish or other languages
+- Children aged 5-12 been couries.
 - Educators seeking innovative teaching tools
 - Parents wanting to supplement traditional learning methods
 - IoT enthusiasts building smart educational devices
-
-![Project Idea](project.png)
 
 ## Architecture Diagram
 
