@@ -2,12 +2,17 @@ package core
 
 import (
 	"log"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/ErickLopezDev/cwlb-server/internal/services"
 )
+
+type OrchestratorInterface interface {
+	HandleAudio(audioData []byte) ([]byte, error)
+	ProcessAudio(inputText string) ([]byte, error)
+	PlayAudio(audio []byte) error
+}
 
 type Orchestrator struct {
 	STT services.STTService
@@ -42,12 +47,10 @@ func (o *Orchestrator) HandleAudio(audioData []byte) ([]byte, error) {
 	log.Println("[Orchestrator] Starting complete audio pipeline...")
 
 	// Create temporary file for STT
-	tmpDir := os.TempDir()
+	tmpDir := "."
 	filePath := filepath.Join(tmpDir, "input_audio_"+time.Now().Format("150405")+".wav")
 
-	if err := os.WriteFile(filePath, audioData, 0644); err != nil {
-		return nil, err
-	}
+	saveWAV(audioData, filePath)
 	log.Println("[Orchestrator] Temporary audio saved at:", filePath)
 
 	// Convert audio to text
@@ -72,4 +75,8 @@ func (o *Orchestrator) HandleAudio(audioData []byte) ([]byte, error) {
 
 	log.Println("[Orchestrator] Complete pipeline OK")
 	return outputAudio, nil
+}
+
+func (o *Orchestrator) PlayAudio(audio []byte) error {
+	return o.TTS.PlayAudio(audio)
 }

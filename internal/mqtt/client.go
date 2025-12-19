@@ -2,6 +2,8 @@ package mqtt
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -15,6 +17,11 @@ type AudioSession struct {
 	chunks [][]byte
 }
 
+type StartMessage struct {
+	RobotID string `json:"robot_id"`
+	KidID   string `json:"kid_id"`
+}
+
 func NewClient(broker string, orchestrator *core.Orchestrator) mqtt.Client {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(broker)
@@ -22,27 +29,36 @@ func NewClient(broker string, orchestrator *core.Orchestrator) mqtt.Client {
 
 	sessions := make(map[string]*AudioSession)
 	var sessionsMu sync.Mutex
+	var currentDevice string
 
 	opts.OnConnect = func(c mqtt.Client) {
 		log.Println("Connected to MQTT broker")
 
-		c.Subscribe("/device/+/audio/start", 0,
+		if token := c.Subscribe("/device/audio/start", 0,
 			func(_ mqtt.Client, msg mqtt.Message) {
-				handleStart(&sessionsMu, sessions, msg)
+				handleStart(&sessionsMu, sessions, &currentDevice, msg)
 			},
-		)
+		); token.Wait() && token.Error() != nil {
+			log.Println("Subscribe start failed:", token.Error())
+		}
 
-		c.Subscribe("/device/+/audio/chunk", 0,
+		if token := c.Subscribe("/device/audio/chunk", 0,
 			func(_ mqtt.Client, msg mqtt.Message) {
-				handleChunk(&sessionsMu, sessions, msg)
+				handleChunk(&sessionsMu, sessions, &currentDevice, msg)
 			},
-		)
+		); token.Wait() && token.Error() != nil {
+			log.Println("Subscribe chunk failed:", token.Error())
+		}
 
-		c.Subscribe("/device/+/audio/end", 0,
+		if token := c.Subscribe("/device/audio/end", 0,
 			func(client mqtt.Client, msg mqtt.Message) {
-				handleEnd(&sessionsMu, sessions, client, orchestrator, msg)
+				handleEnd(&sessionsMu, sessions, &currentDevice, client, orchestrator, msg)
 			},
-		)
+		); token.Wait() && token.Error() != nil {
+			log.Println("Subscribe end failed:", token.Error())
+		}
+
+		log.Println("Subscribed to MQTT topics")
 	}
 
 	client := mqtt.NewClient(opts)
@@ -54,8 +70,14 @@ func NewClient(broker string, orchestrator *core.Orchestrator) mqtt.Client {
 }
 
 // Starts a new audio session
-func handleStart(mu *sync.Mutex, sessions map[string]*AudioSession, msg mqtt.Message) {
-	deviceID := extractDeviceID(msg.Topic())
+func handleStart(mu *sync.Mutex, sessions map[string]*AudioSession, currentDevice *string, msg mqtt.Message) {
+	var startMsg StartMessage
+	if err := json.Unmarshal(msg.Payload(), &startMsg); err != nil {
+		log.Println("Error parsing start message:", err)
+		return
+	}
+	deviceID := startMsg.RobotID
+	*currentDevice = deviceID
 	mu.Lock()
 	sessions[deviceID] = &AudioSession{}
 	mu.Unlock()
@@ -63,12 +85,16 @@ func handleStart(mu *sync.Mutex, sessions map[string]*AudioSession, msg mqtt.Mes
 }
 
 // Saves a chunk of audio
-func handleChunk(mu *sync.Mutex, sessions map[string]*AudioSession, msg mqtt.Message) {
-	deviceID := extractDeviceID(msg.Topic())
-
+func handleChunk(mu *sync.Mutex, sessions map[string]*AudioSession, currentDevice *string, msg mqtt.Message) {
 	data, err := base64.StdEncoding.DecodeString(string(msg.Payload()))
 	if err != nil {
 		log.Println("Error decoding chunk:", err)
+		return
+	}
+
+	deviceID := *currentDevice
+	if deviceID == "" {
+		log.Println("No current device set")
 		return
 	}
 
@@ -87,9 +113,13 @@ func handleChunk(mu *sync.Mutex, sessions map[string]*AudioSession, msg mqtt.Mes
 	log.Println("Chunk received for", deviceID, "size:", len(data))
 }
 
-// Combines and process the audio, then publish the resposne
-func handleEnd(mu *sync.Mutex, sessions map[string]*AudioSession, client mqtt.Client, orchestrator *core.Orchestrator, msg mqtt.Message) {
-	deviceID := extractDeviceID(msg.Topic())
+// Combines and process the audio, then publish the response in chunks
+func handleEnd(mu *sync.Mutex, sessions map[string]*AudioSession, currentDevice *string, client mqtt.Client, orchestrator *core.Orchestrator, msg mqtt.Message) {
+	deviceID := *currentDevice
+	if deviceID == "" {
+		log.Println("No current device set")
+		return
+	}
 
 	mu.Lock()
 	session := sessions[deviceID]
@@ -112,8 +142,22 @@ func handleEnd(mu *sync.Mutex, sessions map[string]*AudioSession, client mqtt.Cl
 		return
 	}
 
-	client.Publish("/device/"+deviceID+"/audio/output", 0, false, audioResponse)
-	log.Println("Response published to", deviceID)
+	// Send response in chunks
+	chunkSize := 32000 // ~1 second at 16000 Hz, 16-bit
+	totalChunks := (len(audioResponse) + chunkSize - 1) / chunkSize
+	for i := range totalChunks {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > len(audioResponse) {
+			end = len(audioResponse)
+		}
+		chunk := audioResponse[start:end]
+		encoded := base64.StdEncoding.EncodeToString(chunk)
+		payload := fmt.Sprintf(`{"index": %d, "total": %d, "data": "%s"}`, i, totalChunks, encoded)
+		client.Publish("/device/"+deviceID+"/audio/response_chunk", 0, false, payload)
+	}
+	client.Publish("/device/"+deviceID+"/audio/response_end", 0, false, "")
+	log.Println("Response chunks published to", deviceID)
 }
 
 func extractDeviceID(topic string) string {
