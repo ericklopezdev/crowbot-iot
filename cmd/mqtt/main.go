@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/ErickLopezDev/cwlb-server/internal/config"
 	"github.com/ErickLopezDev/cwlb-server/internal/core"
 	"github.com/ErickLopezDev/cwlb-server/internal/mqtt"
 	"github.com/ErickLopezDev/cwlb-server/internal/services"
@@ -13,42 +17,56 @@ import (
 func main() {
 	_ = godotenv.Load(".env")
 
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "n8n-testing-469619-979325bcaed2.json")
-
-	apiKey := os.Getenv("GEMINI_API_KEY")
-
-	log.Println("Initializing GCP STT...")
-	stt, err := services.NewGCPSTT()
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal("STT init failed:", err)
+		log.Fatal("config:", err)
 	}
-	log.Println("GCP STT initialized successfully")
 
-	log.Println("Initializing GCP TTS...")
-	tts, err := services.NewGCPTTS()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	stt, err := buildSTT(cfg)
 	if err != nil {
-		log.Fatal("TTS init failed:", err)
+		log.Fatal("STT init:", err)
 	}
-	log.Println("GCP TTS initialized successfully")
-
-	log.Println("Initializing Gemini LLM...")
-	llm, err := services.NewGeminiLLM(apiKey)
+	tts, err := buildTTS(cfg)
 	if err != nil {
-		log.Fatal("LLM init failed:", err)
+		log.Fatal("TTS init:", err)
 	}
-	log.Println("Gemini LLM initialized successfully")
-
-	orchestrator := &core.Orchestrator{
-		STT: stt,
-		LLM: llm,
-		TTS: tts,
+	llm, err := buildLLM(cfg)
+	if err != nil {
+		log.Fatal("LLM init:", err)
 	}
 
-	broker := "tcp://localhost:1883" 
-	_ = mqtt.NewClient(broker, orchestrator)
+	orchestrator := &core.Orchestrator{STT: stt, LLM: llm, TTS: tts}
 
-	log.Println("MQTT server running...")
+	client := mqtt.NewClient(ctx, cfg.MQTTBroker, orchestrator)
+	defer client.Disconnect(250)
 
-	// Keep running
-	select {}
+	log.Printf("MQTT server running (broker=%s, STT=%s, TTS=%s, LLM=%s)",
+		cfg.MQTTBroker, cfg.STTProvider, cfg.TTSProvider, cfg.LLMProvider)
+
+	<-ctx.Done()
+	log.Println("shutting down")
+}
+
+func buildSTT(cfg *config.Config) (services.STTService, error) {
+	if cfg.STTProvider == "mock" {
+		return &services.MockSTT{}, nil
+	}
+	return services.NewGCPSTT()
+}
+
+func buildTTS(cfg *config.Config) (services.TTSService, error) {
+	if cfg.TTSProvider == "mock" {
+		return &services.MockTTS{}, nil
+	}
+	return services.NewGCPTTS()
+}
+
+func buildLLM(cfg *config.Config) (services.LLMService, error) {
+	if cfg.LLMProvider == "mock" {
+		return &services.MockLLM{}, nil
+	}
+	return services.NewGeminiLLM(cfg.GeminiAPIKey)
 }

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/ErickLopezDev/cwlb-server/internal/config"
 	"github.com/ErickLopezDev/cwlb-server/internal/core"
 	"github.com/ErickLopezDev/cwlb-server/internal/services"
 	"github.com/ErickLopezDev/cwlb-server/internal/utils"
@@ -16,54 +18,62 @@ import (
 func main() {
 	_ = godotenv.Load(".env")
 
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "n8n-testing-469619-979325bcaed2.json")
-
-	apiKey := os.Getenv("GEMINI_API_KEY")
-
-	log.Println("Initializing GCP STT...")
-	stt, err := services.NewGCPSTT()
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("config:", err)
 	}
-	log.Println("GCP STT initialized successfully")
 
-	log.Println("Initializing GCP TTS...")
-	tts, err := services.NewGCPTTS()
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("GCP TTS initialized successfully")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	log.Println("Initializing Gemini LLM...")
-	llm, err := services.NewGeminiLLM(apiKey)
-	if err != nil {
-		log.Fatal(err)
+	var stt services.STTService
+	if cfg.STTProvider == "mock" {
+		stt = &services.MockSTT{}
+	} else {
+		stt, err = services.NewGCPSTT()
+		if err != nil {
+			log.Fatal("STT init:", err)
+		}
 	}
-	log.Println("Gemini LLM initialized successfully")
+
+	var tts services.TTSService
+	if cfg.TTSProvider == "mock" {
+		tts = &services.MockTTS{}
+	} else {
+		tts, err = services.NewGCPTTS()
+		if err != nil {
+			log.Fatal("TTS init:", err)
+		}
+	}
+
+	var llm services.LLMService
+	if cfg.LLMProvider == "mock" {
+		llm = &services.MockLLM{}
+	} else {
+		llm, err = services.NewGeminiLLM(cfg.GeminiAPIKey)
+		if err != nil {
+			log.Fatal("LLM init:", err)
+		}
+	}
 
 	orchestrator := core.NewLocalOrchestrator(stt, llm, tts)
-
 	recorder := utils.NewLocalRecorder(orchestrator)
 
-	// Captura señal Ctrl+C para salir
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-sigs
-		log.Println("Exiting...")
+		<-ctx.Done()
+		log.Println("exiting")
 		os.Exit(0)
 	}()
 
-	log.Println("Press 'R' then Enter to start/stop recording")
+	log.Printf("ready (STT=%s, TTS=%s, LLM=%s) — press 'R' then Enter to start/stop recording",
+		cfg.STTProvider, cfg.TTSProvider, cfg.LLMProvider)
 
 	var input string
 	for {
-		_, err := fmt.Scanln(&input)
-		if err != nil {
-			log.Println("Error reading input:", err)
+		if _, err := fmt.Scanln(&input); err != nil {
+			log.Println("read error:", err)
 			continue
 		}
-		log.Println("Read input:", input)
 		if input == "R" || input == "r" {
 			recorder.StartStopRecording()
 		}
