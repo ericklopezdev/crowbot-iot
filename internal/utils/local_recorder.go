@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"os"
 	"sync"
@@ -9,7 +10,6 @@ import (
 	"github.com/ErickLopezDev/cwlb-server/internal/core"
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
-	"github.com/gordonklaus/portaudio"
 )
 
 type LocalRecorder struct {
@@ -20,10 +20,7 @@ type LocalRecorder struct {
 }
 
 func NewLocalRecorder(orchestrator *core.LocalOrchestrator) *LocalRecorder {
-	return &LocalRecorder{
-		Orchestrator: orchestrator,
-		Chunks:       [][]byte{},
-	}
+	return &LocalRecorder{Orchestrator: orchestrator}
 }
 
 func (r *LocalRecorder) StartStopRecording() {
@@ -40,62 +37,24 @@ func (r *LocalRecorder) StartStopRecording() {
 	}
 }
 
-func (r *LocalRecorder) recordLoop() {
-	portaudio.Initialize()
-	defer portaudio.Terminate()
-
-	const sampleRate = 16000
-	const framesPerBuffer = 1024
-	input := make([]int16, framesPerBuffer)
-
-	stream, err := portaudio.OpenDefaultStream(1, 0, sampleRate, len(input), input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer stream.Close()
-
-	if err := stream.Start(); err != nil {
-		log.Fatal(err)
-	}
-	defer stream.Stop()
-
-	for r.Recording {
-		if err := stream.Read(); err != nil {
-			log.Println("Error reading from mic:", err)
-			continue
-		}
-		// Save chunk
-		chunkCopy := make([]byte, len(input)*2)
-		for i, v := range input {
-			chunkCopy[i*2] = byte(v)
-			chunkCopy[i*2+1] = byte(v >> 8)
-		}
-		r.mu.Lock()
-		r.Chunks = append(r.Chunks, chunkCopy)
-		r.mu.Unlock()
-	}
-}
-
-// Concat chunks & send to orchestrator
 func (r *LocalRecorder) processAudio() {
 	r.mu.Lock()
-	fullAudio := bytes.Join(r.Chunks, []byte{})
-	r.Chunks = [][]byte{} // limpiar
+	fullAudio := bytes.Join(r.Chunks, nil)
+	r.Chunks = nil
 	r.mu.Unlock()
 
-	// Save temporal WAV
-	tmpFile := "local_record.wav"
-	saveWAV(fullAudio, tmpFile)
+	saveWAV(fullAudio, "local_record.wav")
 
-	// Process complete audio
-	respAudio, err := r.Orchestrator.HandleAudio(fullAudio)
+	ctx := context.Background()
+	respAudio, err := r.Orchestrator.HandleAudio(ctx, fullAudio)
 	if err != nil {
 		log.Println("Error processing audio:", err)
 		return
 	}
 
-	// Reproduce answer
-	r.Orchestrator.PlayAudio(respAudio)
+	if err := r.Orchestrator.PlayAudio(ctx, respAudio); err != nil {
+		log.Println("Error playing audio:", err)
+	}
 }
 
 func saveWAV(data []byte, fileName string) {
@@ -105,7 +64,11 @@ func saveWAV(data []byte, fileName string) {
 		Format:         &audio.Format{NumChannels: 1, SampleRate: sampleRate},
 		SourceBitDepth: 16,
 	}
-	f, _ := os.Create(fileName)
+	f, err := os.Create(fileName)
+	if err != nil {
+		log.Printf("saveWAV: %v", err)
+		return
+	}
 	defer f.Close()
 	enc := wav.NewEncoder(f, sampleRate, 16, 1, 1)
 	enc.Write(buf)

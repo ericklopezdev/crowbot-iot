@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -19,153 +20,116 @@ type LocalOrchestrator struct {
 }
 
 func NewLocalOrchestrator(stt services.STTService, llm services.LLMService, tts services.TTSService) *LocalOrchestrator {
-	return &LocalOrchestrator{
-		STT: stt,
-		LLM: llm,
-		TTS: tts,
-	}
+	return &LocalOrchestrator{STT: stt, LLM: llm, TTS: tts}
 }
 
-// ProcessAudio receives already processed text
-// pipeline: text → response → final audio
-func (lo *LocalOrchestrator) ProcessAudio(inputText string) ([]byte, error) {
-	log.Println("[LocalOrchestrator] Processing text:", inputText)
+func (lo *LocalOrchestrator) ProcessAudio(ctx context.Context, inputText string) ([]byte, error) {
+	log.Println("[LocalOrchestrator] processing text:", inputText)
 
-	// Send text to the LLM model
-	responseText, err := lo.LLM.Ask(inputText)
+	responseText, err := lo.LLM.Ask(ctx, inputText)
 	if err != nil {
-		return nil, err
-	}
-	log.Println("[LocalOrchestrator] LLM response:", responseText)
-
-	// Convert text to audio
-	audio, err := lo.TTS.Synthesize(responseText)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LLM: %w", err)
 	}
 
-	return audio, nil
+	out, err := lo.TTS.Synthesize(ctx, responseText)
+	if err != nil {
+		return nil, fmt.Errorf("TTS: %w", err)
+	}
+	return out, nil
 }
 
-// HandleAudio receives recorded audio bytes, saves them temporarily
-// pipeline: STT → LLM → TTS
-func (lo *LocalOrchestrator) HandleAudio(audioData []byte) ([]byte, error) {
-	log.Println("[LocalOrchestrator] Starting complete audio pipeline...")
+func (lo *LocalOrchestrator) HandleAudio(ctx context.Context, audioData []byte) ([]byte, error) {
+	log.Println("[LocalOrchestrator] starting audio pipeline")
 
-	// Create temporary file for STT
-	tmpDir := os.TempDir()
-	filePath := filepath.Join(tmpDir, "input_audio_"+time.Now().Format("150405")+".wav")
-
-	saveWAV(audioData, filePath)
-	log.Println("[LocalOrchestrator] Temporary audio saved at:", filePath)
-
-	// Convert audio to text
-	text, err := lo.STT.ConvertAudio(filePath)
-	if err != nil {
-		return nil, err
+	filePath := filepath.Join(os.TempDir(), "cwlb_local_"+time.Now().Format("150405.000")+".wav")
+	if err := saveWAV(audioData, filePath); err != nil {
+		return nil, fmt.Errorf("save temp WAV: %w", err)
 	}
-	log.Println("[LocalOrchestrator] Recognized text:", text)
+	defer os.Remove(filePath)
 
-	// Pass text to LLM and get response
-	responseText, err := lo.LLM.Ask(text)
+	text, err := lo.STT.ConvertAudio(ctx, filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("STT: %w", err)
 	}
-	log.Println("[LocalOrchestrator] Generated response:", responseText)
+	log.Printf("[LocalOrchestrator] transcript: %s", text)
 
-	// Convert response to audio
-	outputAudio, err := lo.TTS.Synthesize(responseText)
+	responseText, err := lo.LLM.Ask(ctx, text)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LLM: %w", err)
+	}
+	log.Printf("[LocalOrchestrator] response: %s", responseText)
+
+	outputAudio, err := lo.TTS.Synthesize(ctx, responseText)
+	if err != nil {
+		return nil, fmt.Errorf("TTS: %w", err)
 	}
 
-	// Save response audio for debugging
-	responseFile := "local_response.wav"
-	saveWAV(outputAudio, responseFile)
-	log.Printf("[LocalOrchestrator] Response audio saved to: %s", responseFile)
+	if err := os.WriteFile("local_response.wav", outputAudio, 0644); err != nil {
+		log.Printf("[LocalOrchestrator] warning: could not save response WAV: %v", err)
+	}
 
-	log.Println("[LocalOrchestrator] Complete pipeline OK")
+	log.Println("[LocalOrchestrator] pipeline complete")
 	return outputAudio, nil
 }
 
-// ProcessLocalRecord processes the local_record.wav file through the full pipeline: STT -> LLM -> TTS
-func (lo *LocalOrchestrator) ProcessLocalRecord() error {
-	log.Println("[LocalOrchestrator] Starting local record processing...")
-
-	// Check if local_record.wav exists
+func (lo *LocalOrchestrator) ProcessLocalRecord(ctx context.Context) error {
 	if _, err := os.Stat("local_record.wav"); os.IsNotExist(err) {
-		return logError("local_record.wav not found")
+		return fmt.Errorf("local_record.wav not found")
 	}
 
-	// Step 1: STT - Convert audio to text
-	text, err := lo.STT.ConvertAudio("local_record.wav")
+	text, err := lo.STT.ConvertAudio(ctx, "local_record.wav")
 	if err != nil {
-		return logError("STT conversion failed: %v", err)
+		return fmt.Errorf("STT: %w", err)
 	}
-	log.Printf("[LocalOrchestrator] Transcribed text: %s", text)
+	log.Printf("[LocalOrchestrator] transcript: %s", text)
 
-	// Step 2: LLM - Generate response
-	responseText, err := lo.LLM.Ask(text)
+	responseText, err := lo.LLM.Ask(ctx, text)
 	if err != nil {
-		return logError("LLM request failed: %v", err)
+		return fmt.Errorf("LLM: %w", err)
 	}
-	log.Printf("[LocalOrchestrator] LLM response: %s", responseText)
 
-	// Step 3: TTS - Synthesize response to audio
-	audioData, err := lo.TTS.Synthesize(responseText)
+	audioData, err := lo.TTS.Synthesize(ctx, responseText)
 	if err != nil {
-		return logError("TTS synthesis failed: %v", err)
-	}
-	log.Printf("[LocalOrchestrator] Synthesized audio: %d bytes", len(audioData))
-
-	// Save the output audio
-	outputFile := "local_response.wav"
-	err = os.WriteFile(outputFile, audioData, 0644)
-	if err != nil {
-		return logError("Failed to save output audio: %v", err)
-	}
-	log.Printf("[LocalOrchestrator] Output audio saved to: %s", outputFile)
-
-	// Optionally play the audio
-	err = lo.TTS.PlayAudio(audioData)
-	if err != nil {
-		log.Printf("[LocalOrchestrator] Warning: Failed to play audio: %v", err)
-	} else {
-		log.Println("[LocalOrchestrator] Audio playback completed")
+		return fmt.Errorf("TTS: %w", err)
 	}
 
-	log.Println("[LocalOrchestrator] Local record processing completed successfully")
+	if err := os.WriteFile("local_response.wav", audioData, 0644); err != nil {
+		return fmt.Errorf("write response: %w", err)
+	}
+
+	if err := lo.TTS.PlayAudio(ctx, audioData); err != nil {
+		log.Printf("[LocalOrchestrator] warning: playback failed: %v", err)
+	}
 	return nil
 }
 
-func (lo *LocalOrchestrator) PlayAudio(audio []byte) error {
-	return lo.TTS.PlayAudio(audio)
+func (lo *LocalOrchestrator) PlayAudio(ctx context.Context, audio []byte) error {
+	return lo.TTS.PlayAudio(ctx, audio)
 }
 
-func saveWAV(data []byte, fileName string) {
+func saveWAV(data []byte, fileName string) error {
 	const sampleRate = 16000
 	buf := &audio.IntBuffer{
 		Data:           bytesToInt16(data),
 		Format:         &audio.Format{NumChannels: 1, SampleRate: sampleRate},
 		SourceBitDepth: 16,
 	}
-	f, _ := os.Create(fileName)
+	f, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 	enc := wav.NewEncoder(f, sampleRate, 16, 1, 1)
-	enc.Write(buf)
-	enc.Close()
+	if err := enc.Write(buf); err != nil {
+		return err
+	}
+	return enc.Close()
 }
 
 func bytesToInt16(b []byte) []int {
 	out := make([]int, len(b)/2)
-	for i := 0; i < len(out); i++ {
+	for i := range out {
 		out[i] = int(int16(b[i*2]) | int16(b[i*2+1])<<8)
 	}
 	return out
-}
-
-func logError(format string, args ...interface{}) error {
-	err := fmt.Errorf(format, args...)
-	log.Printf("[LocalOrchestrator] Error: %v", err)
-	return err
 }

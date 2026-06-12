@@ -1,7 +1,10 @@
 package core
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -9,9 +12,9 @@ import (
 )
 
 type OrchestratorInterface interface {
-	HandleAudio(audioData []byte) ([]byte, error)
-	ProcessAudio(inputText string) ([]byte, error)
-	PlayAudio(audio []byte) error
+	HandleAudio(ctx context.Context, audioData []byte) ([]byte, error)
+	ProcessAudio(ctx context.Context, inputText string) ([]byte, error)
+	PlayAudio(ctx context.Context, audio []byte) error
 }
 
 type Orchestrator struct {
@@ -20,63 +23,53 @@ type Orchestrator struct {
 	TTS services.TTSService
 }
 
-// ProcessAudio receives already processed text
-// pipeline: text → response → final audio
-func (o *Orchestrator) ProcessAudio(inputText string) ([]byte, error) {
-	log.Println("[Orchestrator] Processing text:", inputText)
+// ProcessAudio runs the text → LLM → TTS pipeline.
+func (o *Orchestrator) ProcessAudio(ctx context.Context, inputText string) ([]byte, error) {
+	log.Println("[Orchestrator] processing text:", inputText)
 
-	// Send text to the LLM model
-	responseText, err := o.LLM.Ask(inputText)
+	responseText, err := o.LLM.Ask(ctx, inputText)
 	if err != nil {
-		return nil, err
-	}
-	log.Println("[Orchestrator] LLM response:", responseText)
-
-	// Convert text to audio
-	audio, err := o.TTS.Synthesize(responseText)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LLM: %w", err)
 	}
 
+	audio, err := o.TTS.Synthesize(ctx, responseText)
+	if err != nil {
+		return nil, fmt.Errorf("TTS: %w", err)
+	}
 	return audio, nil
 }
 
-// HandleAudio receives recorded audio bytes, saves them temporarily
-// pipeline: STT → LLM → TTS
-func (o *Orchestrator) HandleAudio(audioData []byte) ([]byte, error) {
-	log.Println("[Orchestrator] Starting complete audio pipeline...")
+// HandleAudio runs the full STT → LLM → TTS pipeline from raw PCM bytes.
+func (o *Orchestrator) HandleAudio(ctx context.Context, audioData []byte) ([]byte, error) {
+	log.Println("[Orchestrator] starting audio pipeline")
 
-	// Create temporary file for STT
-	tmpDir := "."
-	filePath := filepath.Join(tmpDir, "input_audio_"+time.Now().Format("150405")+".wav")
-
-	saveWAV(audioData, filePath)
-	log.Println("[Orchestrator] Temporary audio saved at:", filePath)
-
-	// Convert audio to text
-	text, err := o.STT.ConvertAudio(filePath)
-	if err != nil {
-		return nil, err
+	filePath := filepath.Join(os.TempDir(), "cwlb_input_"+time.Now().Format("150405.000")+".wav")
+	if err := saveWAV(audioData, filePath); err != nil {
+		return nil, fmt.Errorf("save temp WAV: %w", err)
 	}
-	log.Println("[Orchestrator] Recognized text:", text)
+	defer os.Remove(filePath)
 
-	// Pass text to LLM and get response
-	responseText, err := o.LLM.Ask(text)
+	text, err := o.STT.ConvertAudio(ctx, filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("STT: %w", err)
 	}
-	log.Println("[Orchestrator] Generated response:", responseText)
+	log.Println("[Orchestrator] recognized:", text)
 
-	// Convert response to audio
-	outputAudio, err := o.TTS.Synthesize(responseText)
+	responseText, err := o.LLM.Ask(ctx, text)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LLM: %w", err)
+	}
+	log.Println("[Orchestrator] response:", responseText)
+
+	outputAudio, err := o.TTS.Synthesize(ctx, responseText)
+	if err != nil {
+		return nil, fmt.Errorf("TTS: %w", err)
 	}
 
-	log.Println("[Orchestrator] Complete pipeline OK")
+	log.Println("[Orchestrator] pipeline complete")
 	return outputAudio, nil
 }
 
-func (o *Orchestrator) PlayAudio(audio []byte) error {
-	return o.TTS.PlayAudio(audio)
+func (o *Orchestrator) PlayAudio(ctx context.Context, audio []byte) error {
+	return o.TTS.PlayAudio(ctx, audio)
 }
