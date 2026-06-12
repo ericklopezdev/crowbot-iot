@@ -23,15 +23,13 @@ func NewGCPSTT() (*GCPSTT, error) {
 	return &GCPSTT{client: client}, nil
 }
 
-func (s *GCPSTT) ConvertAudio(filePath string) (string, error) {
-	ctx := context.Background()
-
+func (s *GCPSTT) ConvertAudio(ctx context.Context, filePath string) (string, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", err
 	}
 
-	// Skip WAV header (44 bytes) to get raw PCM data
+	// skip 44-byte WAV header to get raw PCM
 	if len(data) > 44 {
 		data = data[44:]
 	}
@@ -51,12 +49,11 @@ func (s *GCPSTT) ConvertAudio(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	if len(resp.Results) == 0 {
 		return "", fmt.Errorf("no transcription results")
 	}
 
 	text := resp.Results[0].Alternatives[0].Transcript
-	log.Printf("[STT] Transcription: %s", text)
+	log.Printf("[STT] transcription: %s", text)
 	return text, nil
 }

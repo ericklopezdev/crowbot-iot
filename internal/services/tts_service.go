@@ -1,6 +1,8 @@
 package services
 
+import "context"
+
 type TTSService interface {
-	Synthesize(text string) ([]byte, error)
-	PlayAudio(wavBytes []byte) error
+	Synthesize(ctx context.Context, text string) ([]byte, error)
+	PlayAudio(ctx context.Context, wavBytes []byte) error
 }

@@ -1,5 +1,7 @@
 package services
 
+import "context"
+
 type LLMService interface {
-	Ask(text string) (string, error)
+	Ask(ctx context.Context, text string) (string, error)
 }

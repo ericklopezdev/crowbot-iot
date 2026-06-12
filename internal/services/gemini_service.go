@@ -15,19 +15,15 @@ type GeminiLLM struct {
 
 func NewGeminiLLM(apiKey string) (*GeminiLLM, error) {
 	ctx := context.Background()
-
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey})
 	if err != nil {
 		return nil, err
 	}
-
 	return &GeminiLLM{client: client}, nil
 }
 
-func (g *GeminiLLM) Ask(prompt string) (string, error) {
-	ctx := context.Background()
-
-	log.Printf("[Gemini] Sending prompt: %q", prompt)
+func (g *GeminiLLM) Ask(ctx context.Context, prompt string) (string, error) {
+	log.Printf("[Gemini] prompt: %q", prompt)
 
 	systemPrompt := os.Getenv("PROMPT")
 	resp, err := g.client.Models.GenerateContent(
@@ -36,7 +32,6 @@ func (g *GeminiLLM) Ask(prompt string) (string, error) {
 		genai.Text(systemPrompt+"\nUser prompt: "+prompt),
 		nil,
 	)
-
 	if err != nil {
 		return "", fmt.Errorf("gemini request failed: %w", err)
 	}

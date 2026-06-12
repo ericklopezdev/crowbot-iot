@@ -1,6 +1,7 @@
 package services
 
-type STTService interface {
-	ConvertAudio(filePath string) (string, error)
-}
+import "context"
 
+type STTService interface {
+	ConvertAudio(ctx context.Context, filePath string) (string, error)
+}

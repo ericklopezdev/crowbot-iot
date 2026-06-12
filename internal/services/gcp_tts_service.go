@@ -3,11 +3,9 @@ package services
 import (
 	"context"
 	"log"
-	"time"
 
 	texttospeech "cloud.google.com/go/texttospeech/apiv1"
 	texttospeechpb "cloud.google.com/go/texttospeech/apiv1/texttospeechpb"
-	"github.com/gordonklaus/portaudio"
 )
 
 type GCPTTS struct {
@@ -23,11 +21,11 @@ func NewGCPTTS() (*GCPTTS, error) {
 	return &GCPTTS{client: client}, nil
 }
 
-func (t *GCPTTS) Synthesize(text string) ([]byte, error) {
-	ctx := context.Background()
-
+func (t *GCPTTS) Synthesize(ctx context.Context, text string) ([]byte, error) {
 	req := &texttospeechpb.SynthesizeSpeechRequest{
-		Input: &texttospeechpb.SynthesisInput{InputSource: &texttospeechpb.SynthesisInput_Text{Text: text}},
+		Input: &texttospeechpb.SynthesisInput{
+			InputSource: &texttospeechpb.SynthesisInput_Text{Text: text},
+		},
 		Voice: &texttospeechpb.VoiceSelectionParams{
 			LanguageCode: "es-ES",
 			SsmlGender:   texttospeechpb.SsmlVoiceGender_FEMALE,
@@ -43,34 +41,13 @@ func (t *GCPTTS) Synthesize(text string) ([]byte, error) {
 		return nil, err
 	}
 
-	log.Printf("[TTS] Synthesized audio length: %d bytes", len(resp.AudioContent))
+	log.Printf("[TTS] synthesized %d bytes", len(resp.AudioContent))
 	return resp.AudioContent, nil
 }
 
-func (t *GCPTTS) PlayAudio(pcmBytes []byte) error {
-	portaudio.Initialize()
-	defer portaudio.Terminate()
-
-	// Convert raw PCM bytes to int16 samples
-	samples := make([]int16, len(pcmBytes)/2)
-	for i := range samples {
-		samples[i] = int16(pcmBytes[i*2]) | int16(pcmBytes[i*2+1])<<8
-	}
-
-	const sampleRate = 16000
-	stream, err := portaudio.OpenDefaultStream(0, 1, sampleRate, len(samples), samples)
-	if err != nil {
-		return err
-	}
-	defer stream.Close()
-
-	if err := stream.Start(); err != nil {
-		return err
-	}
-	time.Sleep(time.Duration(len(samples)/sampleRate) * time.Second)
-	if err := stream.Stop(); err != nil {
-		return err
-	}
-	log.Println("[TTS] Playback finished")
-	return nil
+// PlayAudio plays raw 16kHz PCM locally. Requires building with `-tags portaudio`
+// (and the PortAudio system library); otherwise it returns an error. The server
+// path never calls this — it sends audio back over MQTT instead.
+func (t *GCPTTS) PlayAudio(_ context.Context, pcmBytes []byte) error {
+	return playPCM(pcmBytes)
 }
