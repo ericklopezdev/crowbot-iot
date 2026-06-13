@@ -34,6 +34,26 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// APIConfig holds the settings for the HTTP API server (cmd/api). It is kept
+// separate from the AI-pipeline Config so the API doesn't require GCP creds.
+type APIConfig struct {
+	DatabaseURL string
+	JWTSecret   string
+	Addr        string
+}
+
+func LoadAPI() (*APIConfig, error) {
+	c := &APIConfig{
+		DatabaseURL: getEnvOrDefault("DATABASE_URL", "postgres://crowbot:crowbot@localhost:5433/crowbot?sslmode=disable"),
+		JWTSecret:   os.Getenv("JWT_SECRET"),
+		Addr:        getEnvOrDefault("API_ADDR", ":8080"),
+	}
+	if c.JWTSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+	return c, nil
+}
+
 func getEnvOrDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
