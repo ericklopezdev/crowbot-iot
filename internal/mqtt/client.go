@@ -10,7 +10,10 @@ import (
 	"sync"
 
 	"github.com/ErickLopezDev/cwlb-server/internal/core"
+	"github.com/ErickLopezDev/cwlb-server/internal/store"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Wire format (device id travels in the topic, not the payload):
@@ -136,7 +139,9 @@ func deviceIDFromTopic(topic string) (string, bool) {
 
 // -- MQTT client --
 
-func NewClient(ctx context.Context, broker string, orchestrator *core.Orchestrator) mqtt.Client {
+// NewClient connects to the broker and wires the audio handlers. queries may be
+// nil, in which case interactions are processed but not persisted.
+func NewClient(ctx context.Context, broker string, orchestrator *core.Orchestrator, queries store.Querier) mqtt.Client {
 	router := newSessionRouter()
 
 	opts := mqtt.NewClientOptions()
@@ -162,7 +167,7 @@ func NewClient(ctx context.Context, broker string, orchestrator *core.Orchestrat
 			handleChunk(router, msg)
 		})
 		sub("/device/+/audio/end", func(c mqtt.Client, msg mqtt.Message) {
-			handleEnd(ctx, c, router, orchestrator, msg)
+			handleEnd(ctx, c, router, orchestrator, queries, msg)
 		})
 
 		log.Println("[mqtt] subscribed to /device/+/audio/{start,chunk,end}")
@@ -206,29 +211,69 @@ func handleChunk(router *sessionRouter, msg mqtt.Message) {
 	}
 }
 
-func handleEnd(ctx context.Context, client mqtt.Client, router *sessionRouter, orchestrator *core.Orchestrator, msg mqtt.Message) {
+func handleEnd(ctx context.Context, client mqtt.Client, router *sessionRouter, orchestrator *core.Orchestrator, queries store.Querier, msg mqtt.Message) {
 	deviceID, ok := deviceIDFromTopic(msg.Topic())
 	if !ok {
 		log.Printf("[mqtt] bad end topic: %s", msg.Topic())
 		return
 	}
-	go processSession(ctx, client, router, orchestrator, deviceID)
+	go processSession(ctx, client, router, orchestrator, queries, deviceID)
 }
 
-func processSession(ctx context.Context, client mqtt.Client, router *sessionRouter, orchestrator *core.Orchestrator, deviceID string) {
+func processSession(ctx context.Context, client mqtt.Client, router *sessionRouter, orchestrator *core.Orchestrator, queries store.Querier, deviceID string) {
 	fullAudio, err := router.complete(deviceID)
 	if err != nil {
 		log.Printf("[mqtt] session %s: %v", deviceID, err)
 		return
 	}
 
-	audioResponse, err := orchestrator.HandleAudio(ctx, fullAudio)
+	result, err := orchestrator.HandleAudio(ctx, fullAudio)
 	if err != nil {
 		log.Printf("[mqtt] pipeline error for %s: %v", deviceID, err)
 		return
 	}
 
-	publishResponse(client, deviceID, audioResponse)
+	publishResponse(client, deviceID, result.Audio)
+	persistInteraction(ctx, queries, deviceID, result)
+}
+
+// persistInteraction stores one turn. It is best-effort: any failure is logged
+// and never blocks the voice response already sent to the child.
+func persistInteraction(ctx context.Context, queries store.Querier, deviceID string, r *core.TurnResult) {
+	if queries == nil {
+		return
+	}
+
+	devUUID, err := uuid.Parse(deviceID)
+	if err != nil {
+		log.Printf("[mqtt] skip persist: device id %q is not a uuid: %v", deviceID, err)
+		return
+	}
+
+	// Resolve device -> active child for attribution. No assignment is fine:
+	// the interaction is stored with a null child_id.
+	var childID pgtype.UUID
+	if child, err := queries.GetActiveChildForDevice(ctx, devUUID); err != nil {
+		log.Printf("[mqtt] no active child for device %s: %v", deviceID, err)
+	} else {
+		childID = pgtype.UUID{Bytes: child.ID, Valid: true}
+	}
+
+	if _, err := queries.CreateInteraction(ctx, store.CreateInteractionParams{
+		DeviceID:       devUUID,
+		ChildID:        childID,
+		SessionID:      pgtype.UUID{Bytes: uuid.New(), Valid: true},
+		Transcript:     r.Transcript,
+		ResponseText:   r.ResponseText,
+		SttLatencyMs:   r.STTLatencyMs,
+		LlmLatencyMs:   r.LLMLatencyMs,
+		TtsLatencyMs:   r.TTSLatencyMs,
+		TotalLatencyMs: r.TotalLatencyMs,
+	}); err != nil {
+		log.Printf("[mqtt] persist interaction for %s failed: %v", deviceID, err)
+		return
+	}
+	log.Printf("[mqtt] interaction persisted: device=%s child_valid=%t", deviceID, childID.Valid)
 }
 
 func publishResponse(client mqtt.Client, deviceID string, audio []byte) {

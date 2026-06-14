@@ -6,11 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/ErickLopezDev/cwlb-server/internal/analysis"
 	"github.com/ErickLopezDev/cwlb-server/internal/config"
 	"github.com/ErickLopezDev/cwlb-server/internal/core"
 	"github.com/ErickLopezDev/cwlb-server/internal/mqtt"
 	"github.com/ErickLopezDev/cwlb-server/internal/services"
+	"github.com/ErickLopezDev/cwlb-server/internal/store"
 	"github.com/joho/godotenv"
 )
 
@@ -40,7 +43,23 @@ func main() {
 
 	orchestrator := &core.Orchestrator{STT: stt, LLM: llm, TTS: tts}
 
-	client := mqtt.NewClient(ctx, cfg.MQTTBroker, orchestrator)
+	var queries store.Querier
+	if cfg.DatabaseURL != "" {
+		pool, err := store.NewPool(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Fatal("db pool:", err)
+		}
+		defer pool.Close()
+		queries = store.New(pool)
+		log.Println("persistence enabled")
+
+		worker := analysis.NewWorker(pool, analysis.NewClassifier(llm), 5*time.Second, 10)
+		go worker.Run(ctx)
+	} else {
+		log.Println("DATABASE_URL not set — persistence + analysis disabled")
+	}
+
+	client := mqtt.NewClient(ctx, cfg.MQTTBroker, orchestrator, queries)
 	defer client.Disconnect(250)
 
 	log.Printf("MQTT server running (broker=%s, STT=%s, TTS=%s, LLM=%s)",

@@ -46,13 +46,13 @@ func (r *LocalRecorder) processAudio() {
 	saveWAV(fullAudio, "local_record.wav")
 
 	ctx := context.Background()
-	respAudio, err := r.Orchestrator.HandleAudio(ctx, fullAudio)
+	result, err := r.Orchestrator.HandleAudio(ctx, fullAudio)
 	if err != nil {
 		log.Println("Error processing audio:", err)
 		return
 	}
 
-	if err := r.Orchestrator.PlayAudio(ctx, respAudio); err != nil {
+	if err := r.Orchestrator.PlayAudio(ctx, result.Audio); err != nil {
 		log.Println("Error playing audio:", err)
 	}
 }

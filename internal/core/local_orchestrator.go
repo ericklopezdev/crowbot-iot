@@ -38,8 +38,9 @@ func (lo *LocalOrchestrator) ProcessAudio(ctx context.Context, inputText string)
 	return out, nil
 }
 
-func (lo *LocalOrchestrator) HandleAudio(ctx context.Context, audioData []byte) ([]byte, error) {
+func (lo *LocalOrchestrator) HandleAudio(ctx context.Context, audioData []byte) (*TurnResult, error) {
 	log.Println("[LocalOrchestrator] starting audio pipeline")
+	start := time.Now()
 
 	filePath := filepath.Join(os.TempDir(), "cwlb_local_"+time.Now().Format("150405.000")+".wav")
 	if err := saveWAV(audioData, filePath); err != nil {
@@ -47,29 +48,43 @@ func (lo *LocalOrchestrator) HandleAudio(ctx context.Context, audioData []byte) 
 	}
 	defer os.Remove(filePath)
 
+	t0 := time.Now()
 	text, err := lo.STT.ConvertAudio(ctx, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("STT: %w", err)
 	}
+	sttLatency := time.Since(t0)
 	log.Printf("[LocalOrchestrator] transcript: %s", text)
 
+	t1 := time.Now()
 	responseText, err := lo.LLM.Ask(ctx, text)
 	if err != nil {
 		return nil, fmt.Errorf("LLM: %w", err)
 	}
+	llmLatency := time.Since(t1)
 	log.Printf("[LocalOrchestrator] response: %s", responseText)
 
+	t2 := time.Now()
 	outputAudio, err := lo.TTS.Synthesize(ctx, responseText)
 	if err != nil {
 		return nil, fmt.Errorf("TTS: %w", err)
 	}
+	ttsLatency := time.Since(t2)
 
 	if err := os.WriteFile("local_response.wav", outputAudio, 0644); err != nil {
 		log.Printf("[LocalOrchestrator] warning: could not save response WAV: %v", err)
 	}
 
 	log.Println("[LocalOrchestrator] pipeline complete")
-	return outputAudio, nil
+	return &TurnResult{
+		Audio:          outputAudio,
+		Transcript:     text,
+		ResponseText:   responseText,
+		STTLatencyMs:   int32(sttLatency.Milliseconds()),
+		LLMLatencyMs:   int32(llmLatency.Milliseconds()),
+		TTSLatencyMs:   int32(ttsLatency.Milliseconds()),
+		TotalLatencyMs: int32(time.Since(start).Milliseconds()),
+	}, nil
 }
 
 func (lo *LocalOrchestrator) ProcessLocalRecord(ctx context.Context) error {

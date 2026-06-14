@@ -12,6 +12,9 @@ type Config struct {
 	TTSProvider  string
 	LLMProvider  string
 	SystemPrompt string
+	// DatabaseURL is optional: when empty the MQTT ingest runs without
+	// persistence (interactions are not stored).
+	DatabaseURL string
 }
 
 func Load() (*Config, error) {
@@ -22,6 +25,7 @@ func Load() (*Config, error) {
 		TTSProvider:  getEnvOrDefault("CROWBOT_TTS_PROVIDER", "gcp"),
 		LLMProvider:  getEnvOrDefault("CROWBOT_LLM_PROVIDER", "gemini"),
 		SystemPrompt: os.Getenv("PROMPT"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
 	}
 
 	if (cfg.STTProvider == "gcp" || cfg.TTSProvider == "gcp") && os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
