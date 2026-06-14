@@ -1,9 +1,8 @@
 # 07 — Dashboard para Padres (Frontend)
 
-> Cómo el cliente consume el sistema. Este documento cubre solo **cómo encaja el
+> Cómo el cliente consume el sistema. Este documento cubre **cómo encaja el
 > frontend en el sistema**; el detalle de implementación (estructura de carpetas,
-> orden de construcción, theming) vive en [`frontend.plan.md`](../frontend.plan.md).
-> Código en `web/`.
+> orden de construcción, theming) vive en el propio código de `web/`.
 
 ## Rol en el sistema
 
@@ -70,7 +69,7 @@ con dark/light, layout con sidebar, página de overview del niño (stat-cards, b
 de áreas, chips de topics, heatmap de uso, recomendaciones), página de
 interacciones paginada, login y cliente axios con interceptor JWT (401 → login).
 
-Pendiente (ver [`frontend.plan.md`](../frontend.plan.md) §9):
+Pendiente:
 
 - Poner `VITE_USE_MOCKS=false` y probar contra el backend real (DB ya seedeada).
 - Pulido responsive y QA visual dark/light en navegador.

@@ -106,7 +106,7 @@ firmware:
 > las respuestas a ~6 s antes de que falle el `realloc` en un MCU de ~200 KB. El
 > protocolo `index/total` hace el streaming limpio (reproducir en orden, con un
 > pequeño buffer de reordenamiento). Esto evita la falsa necesidad de una tarjeta
-> SD. Detalle completo en [`PLAN.md`](../PLAN.md) Etapa 2.
+> SD.
 
 El lado servidor de este contrato ya está implementado y verificado por
 `cmd/devicesim` y `test_mqtt.sh`; la reproducción en streaming en el firmware queda

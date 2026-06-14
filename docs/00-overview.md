@@ -14,11 +14,10 @@ pipeline STT → LLM → TTS detrás de una capa de IA intercambiable, persiste 
 turno en PostgreSQL, lo analiza de forma asíncrona para extraer señal de
 desarrollo cognitivo, y lo expone por una API REST a un dashboard para padres.
 
-El producto (un robot que conversa con el niño y da insights a los padres) está
-descrito en [`PRODUCT.md`](../PRODUCT.md). El roadmap de ingeniería por etapas
-está en [`PLAN.md`](../PLAN.md). Estos documentos en `docs/` describen el **sistema
-ya construido**: cómo se compone, qué decisiones lo moldean y qué tradeoffs se
-aceptaron.
+Estos documentos en `docs/` describen el **sistema ya construido**: cómo se
+compone, qué decisiones lo moldean y qué tradeoffs se aceptaron. El producto (un
+robot que conversa con el niño y da insights a los padres) y el roadmap de
+ingeniería por etapas se resumen en estos mismos capítulos.
 
 ## Las tres propiedades que guían el diseño
 

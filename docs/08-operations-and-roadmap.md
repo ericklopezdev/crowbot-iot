@@ -2,7 +2,7 @@
 
 > Cómo se comporta el sistema ante fallos, qué falta para operarlo en producción, y
 > hacia dónde evoluciona. Resume los modos de degradación de los capítulos
-> anteriores y enlaza con las etapas pendientes de [`PLAN.md`](../PLAN.md).
+> anteriores y las etapas pendientes del roadmap de ingeniería.
 
 ## Modos de fallo y degradación
 
@@ -36,7 +36,7 @@ entorno:
 
 Lo construido cubre el camino edge → MQTT → pipeline → persistencia → análisis →
 API → dashboard. Las etapas que faltan para una historia de backend distribuido
-completa (detalle en [`PLAN.md`](../PLAN.md) Etapas 5–7):
+completa:
 
 ```mermaid
 flowchart LR
