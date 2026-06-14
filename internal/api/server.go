@@ -39,6 +39,14 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/children", s.requireAuth(http.HandlerFunc(s.handleListChildren)))
 	mux.Handle("GET /api/children/{id}", s.requireAuth(http.HandlerFunc(s.handleGetChild)))
 
+	// Dashboard reads (PRODUCT.md P3).
+	mux.Handle("GET /api/children/{id}/overview", s.requireAuth(http.HandlerFunc(s.handleChildOverview)))
+	mux.Handle("GET /api/children/{id}/usage", s.requireAuth(http.HandlerFunc(s.handleChildUsage)))
+	mux.Handle("GET /api/children/{id}/topics", s.requireAuth(http.HandlerFunc(s.handleChildTopics)))
+	mux.Handle("GET /api/children/{id}/areas", s.requireAuth(http.HandlerFunc(s.handleChildAreas)))
+	mux.Handle("GET /api/children/{id}/recommendations", s.requireAuth(http.HandlerFunc(s.handleChildRecommendations)))
+	mux.Handle("GET /api/children/{id}/interactions", s.requireAuth(http.HandlerFunc(s.handleChildInteractions)))
+
 	return s.recoverer(s.logRequests(mux))
 }
 
